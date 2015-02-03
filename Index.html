@@ -1,0 +1,233 @@
+<!Doctype html>
+<html>
+<head>
+	<link rel="shortcut icon" href="assets/Robo.ico">
+	
+    <meta charset='UTF-8'></meta>
+    <title>Robo-Wreckage</title>
+    <style type='text/css'>
+        body {
+            padding: 10px;
+            background-color: black;
+            border: 10px red ridge;
+        }
+    </style>
+</head>
+
+<body>
+    <script src="js/phaser.js"></script>
+    <script>
+/**
+Add states for main menu with level selection. << loading screen for each level
+add shooting and mobs
+add shop in main menu
+	upgrades like faster bullets and speed, quicker jumping
+
+	Shoot function that defines a start point and a direction of movement. then teweens a sprite between
+**/
+        var game = new Phaser.Game(960, 640, Phaser.AUTO, "Robo-Wreckage", {
+            preload: preload,
+            create: create,
+            update: update,
+            render: render
+        });
+
+
+        function preload() {
+            game.load.spritesheet('player', 'assets/player.png', 64, 90);
+            game.load.tilemap('map', 'assets/Robo-Wreckage_Map.json', null, Phaser.Tilemap.TILED_JSON);
+            game.load.tilemap('map2', 'assets/Robo-Wreckage_Map_2.json', null, Phaser.Tilemap.TILED_JSON);
+            game.load.image('RW_Tileset', 'assets/RW_Tileset.png');
+            game.load.image('bullet','assets/bullet.png');
+            game.load.image('arrow','assets/arrow.png');
+
+        }
+
+        var score;
+        var player;
+        var jumpTimer = 0;
+		var Pvel = 0;
+		
+		var bulletEmitter;
+		var rightEmitter;
+        var cursors;
+
+		var arrow;
+        var map;
+        var layer;
+
+
+var fireRate = 100;
+var nextFire = 0;
+        var facing = "left";
+
+        function create() {
+            //alert();
+
+
+            game.physics.startSystem(Phaser.Physics.P2JS);
+
+			    game.world.setBounds(0, 0, 2000, 2000);
+
+			
+            game.stage.backgroundColor = '#2d2d2d';
+
+            map = game.add.tilemap('map2');
+
+            map.addTilesetImage('RW_Tileset');
+
+            layer = map.createLayer('Tile Layer 1');
+
+            layer.resizeWorld();
+
+			
+            map.setCollisionBetween(0, 2);
+
+            game.physics.p2.convertTilemap(map, layer);
+
+            game.physics.p2.gravity.y = 1000;
+
+			
+
+            //      ~ Player ~
+
+            player = game.add.sprite(100, 200, 'player');
+            player.energy = 0;
+            game.physics.p2.enable(player);
+            player.body.collideWorldBounds = true;
+
+            player.animations.add('right', [14, 13, 12, 11, 10, 9, 8], 10, true);
+            player.animations.add('left', [0, 1, 2, 3, 4, 5, 6, 7], 10, true);
+            player.animations.add('up_left', [19, 20, 21], 5, false);
+            player.animations.add('up_right', [22, 23, 24], 5, false);
+
+            player.body.fixedRotation = true
+
+
+			bullets = game.add.group();
+			bullets.enableBody = true;
+		//	bullets.physicsBodyType = Phaser.Physics.P2JS;
+
+			bullets.createMultiple(500, 'bullet');
+			bullets.setAll('checkWorldBounds', true);
+			bullets.setAll('outOfBoundsKill', true);
+    
+	
+			
+			arrow = game.add.sprite(player.x, player.y - 100,'arrow');
+			arrow.scale.setTo(2,2);
+			arrow.anchor.setTo(-0.5,0);
+            cursors = game.input.keyboard.createCursorKeys();
+
+            cursors.up.onDown.add(function() {
+
+                if (checkIfCanJump() && jumpTimer < game.time.now) {
+
+                    player.body.moveUp(550);
+                    jumpTimer = (game.time.now + 1000);
+                }
+            });
+
+
+           game.camera.follow(player, Phaser.Camera.FOLLOW_PLATFORMER);
+		   
+            newText = game.add.text(510, 50, "Press 'F5' to reset.");
+            newText = game.add.text(510, 100, "Use the arrow keys to move.");
+        }
+
+
+
+        function update() {
+//console.log(game.math.roundTo(game.input.mousePointer.x));
+//sconsole.log(game.math.roundTo(game.input.mousePointer.y));
+
+
+	arrow.x = player.x;
+	arrow.y = player.y + 100;
+	arrow.rotation = game.physics.arcade.angleToPointer(arrow);
+		
+            if (cursors.right.isDown) {
+
+                player.body.moveRight(200);
+
+                if (facing != "left") {
+
+                    player.animations.play('right');
+                    facing = "left";
+
+                }
+            } else if (cursors.left.isDown) {
+
+                player.body.moveLeft(200);
+
+                if (facing != "right") {
+
+
+                    player.animations.play('left');
+                    facing = "right";
+
+                }
+            } else {
+                player.body.velocity.x = 0;
+
+                if (facing != "idle") {
+                    player.animations.stop();
+                    if (facing == "left") {
+
+                        player.frame = 17;
+                    } else {
+                        player.frame = 16;
+                    }
+                }
+                facing = "idle";
+            }
+			
+			if(game.input.mouse.button == 0){
+			
+						fire(Pvel);
+			}else{
+			
+			}
+			console.log(game.input.mouse.button);
+        }
+
+        function render() {
+            game.debug.spriteInfo(player, 32, 32);
+        }
+		
+		function fire(Pvel) {
+
+    if (game.time.now > nextFire && bullets.countDead() > 0)
+    {
+        nextFire = game.time.now + fireRate;
+
+        var bullet = bullets.getFirstDead();
+
+        bullet.reset(player.body.x, player.body.y);
+
+        game.physics.arcade.moveToPointer(bullet, 300 + Pvel);
+    }
+
+}
+        function checkIfCanJump() {
+
+            var yAxis = p2.vec2.fromValues(0, 1);
+            var result = false;
+
+            for (var i = 0; i < game.physics.p2.world.narrowphase.contactEquations.length; i++) {
+                var c = game.physics.p2.world.narrowphase.contactEquations[i];
+
+                if (c.bodyA === player.body.data || c.bodyB === player.body.data) {
+                    var d = p2.vec2.dot(c.normalA, yAxis); // Normal dot Y-axis
+                    if (c.bodyA === player.body.data) d *= -1;
+                    if (d > 0.5) result = true;
+                }
+            }
+
+            return result;
+
+        }
+    </script>
+</body>
+
+</html>
